@@ -1,6 +1,12 @@
 import codecs
 import sys
 from datetime import datetime
+from decimal import Decimal
+from .format import format_invoice
+from .personal import compute_rate
+
+one = Decimal('1')
+sixty = Decimal('60')
 
 def main():
     path = sys.argv[1]
@@ -8,19 +14,8 @@ def main():
     with codecs.open(path, encoding='utf-8') as f:
         lines = iter(f)
         section = find_section(title, lines)
-    print section
     entries = parse_section(section)
-    print entries
-    entries.sort(key=lambda entry: entry.start)
-    for entry in entries:
-        d0 = entry.start.date()
-        d1 = entry.end.date()
-        if d0 == d1:
-            print d0
-        else:
-            print d0, '--', d1
-        h, m = divmod(entry.minutes, 60)
-        print '    %d:%02d' % (h, m)
+    format_invoice(title, entries)
 
 def find_section(title, lines):
     """Return the section with the given title, as a list of field-lists.
@@ -81,6 +76,8 @@ class Entry(object):
         self.minutes = sum( clocked_minutes(fields) for fields in clock_data)
         self.start = times(clock_data[-1])[0]
         self.end = times(clock_data[0])[1]
+        self.rate = compute_rate(self.start)
+        self.amount = (self.rate * self.minutes / sixty).quantize(one)
 
     def __repr__(self):
         return '<%d minutes %r...>' % (self.minutes, self.description[:10])
@@ -103,6 +100,6 @@ def clocked_minutes(fields):
 
     """
     d0, d1 = times(fields)
-    return (d1 - d0).total_seconds() // 60
+    return int((d1 - d0).total_seconds() // 60)
 
 main()
